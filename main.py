@@ -5,6 +5,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import sys
 from args import args
+print(args.semantic_difficulty)
 if args.semantic_difficulty:
     from word_embedding import *
     print('semantic difficulty ACTIVATED')
@@ -24,11 +25,12 @@ print("nways = {}, n_shots = {}, T={}".format(num_classes,num_shots,T))
 dataset = torch.load(str(args.test_features), map_location=torch.device(device))
 if torch.is_tensor(dataset):
     print(f'{dataset.shape=}')
+
     if dataset.shape[0]==100:
         nb_base = 64
         nb_val = 16
         nb_novel = 20
-    if dataset.shape[0]==608:
+    elif dataset.shape[0]==608:
         nb_base = 351
         nb_val = 97
         nb_novel = 160
@@ -41,6 +43,7 @@ if torch.is_tensor(dataset):
     dataset = dataset / torch.norm(dataset, dim = 1, keepdim = True)
     dataset = dataset.reshape(shape)
     ini_centroids = dataset[:nb_base].mean(dim = 1)
+    dataset = dataset[-nb_novel:]
 else:
     base_features = dataset['base']
     val_features = dataset['val']
@@ -70,7 +73,10 @@ dim = dataset.shape[-1]
 
 if args.semantic_difficulty:
     semantic_features = torch.load(args.semantic_features, map_location=torch.device(device))
-    semantic_features_n = semantic_features[nb_novel+nb_val:] 
+    semantic_features_n = semantic_features[nb_base+nb_val:] 
+    if semantic_features_n.shape[0] != nb_novel:
+        print(f'{semantic_features_n.shape =} {dataset.shape=}')
+        raise ValueError('PLEASE MAKE SURE semantic features correspond to visual features (NOT the same size here)')
     distances_n = torch.cdist(semantic_features_n,semantic_features_n)
 
 
@@ -95,9 +101,9 @@ class Mask(nn.Module):
 
 def generate_run(num_classes = num_classes, num_shots = num_shots, num_queries = num_queries, dmax= 6.5 ,label=None ):
     if args.semantic_difficulty:
-        classes = run_classes_sample(semantic_features_n,n_ways = num_classes, dmax=dmax,n_runs = 1 , distances=distances_n,maxiter = 1000, label = labels[nb_base+nb_val:].long() )+ nb_novel + nb_val
+        classes = run_classes_sample(semantic_features_n,n_ways = num_classes, dmax=dmax,n_runs = 1 , distances=distances_n,maxiter = 1000, label = labels[nb_base+nb_val:] ).long()
     else:
-        classes = torch.randperm(nb_novel)[:num_classes].unsqueeze(0) + nb_base + nb_val
+        classes = torch.randperm(nb_novel)[:num_classes].unsqueeze(0) 
     run = torch.zeros(num_classes, num_shots + num_queries, dataset.shape[-1]).to(device)
     for i in range(num_classes):
         run[i] = dataset[classes[0][i]][torch.randperm(dataset.shape[1])[:num_shots + num_queries]]

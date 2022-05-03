@@ -18,10 +18,10 @@ parser.add_argument("--eval-fn", type=str, default="ncm", help="device(s) to use
 parser.add_argument("--device", type=str, default="cuda:0", help="device(s) to use, for multiple GPUs try cuda:ijk, will not work with 10+ GPUs")
 
 ### run options
-parser.add_argument("--wd", type=int, default=1, help="weight decay")
+parser.add_argument("--wd", type=float, default=0.01, help="weight decay")
 parser.add_argument("--test-features", type=str, default='/users/local/r21lafar/features/tiered/tieredfeatures2.pt11', help="test features and exit")
 parser.add_argument("--semantic-features", type=str, default='/users/local/r21lafar/features/tiered/tiered_semantic_features.pt', help="load text features")
-parser.add_argument("--labels", type=str, default='/users/local/datasets/Tiered_labels.txt', help="load labels")
+parser.add_argument("--labels", type=str, default='/users/local/datasets/labels_tiered.txt', help="load labels")
 parser.add_argument("--codes", type=str, default='/users/local/datasets/Tiered_codes.txt', help="load codes")
 parser.add_argument("--wandb", type=str, default='', help="Report to wandb, input is the entity name")
 
@@ -32,7 +32,7 @@ parser.add_argument("--n-ways", type=int, default=5, help="number of few-shot wa
 parser.add_argument("--n-queries", type=int, default=15, help="number of few-shot queries")
 
 
-parser.add_argument("--semantic-difficulty", action="store_true", help="create hard problems")
+parser.add_argument("--semantic-difficulty" ,action="store_true", help="create hard problems")
 
 parser.add_argument("--transductive-temperature-softkmeans", type=float, default=10, help="temperature for few-shot transductive is using softkmeans")
 
