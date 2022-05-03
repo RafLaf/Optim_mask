@@ -5,7 +5,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 import sys
 from args import args
-print(args.semantic_difficulty)
+print(args)
+
 if args.semantic_difficulty:
     from word_embedding import *
     print('semantic difficulty ACTIVATED')
@@ -18,7 +19,6 @@ num_shots = args.n_shots
 num_queries = args.n_queries
 T = args.transductive_temperature_softkmeans
 print("nways = {}, n_shots = {}, T={}".format(num_classes,num_shots,T))
-
 
 # loading / preprocessing the dataset
 

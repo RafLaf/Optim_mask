@@ -53,4 +53,3 @@ else:
     args.devices = [args.device]
 
 
-print("args, ", end='')
