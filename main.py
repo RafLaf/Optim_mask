@@ -7,6 +7,7 @@ import sys
 from args import args
 if args.semantic_difficulty:
     from word_embedding import *
+    print('semantic difficulty ACTIVATED')
 
 torch.manual_seed(0)
 device = args.device
@@ -22,6 +23,7 @@ print("nways = {}, n_shots = {}, T={}".format(num_classes,num_shots,T))
 
 dataset = torch.load(str(args.test_features), map_location=torch.device(device))
 if torch.is_tensor(dataset):
+    print(f'{dataset.shape=}')
     if dataset.shape[0]==100:
         nb_base = 64
         nb_val = 16
@@ -30,50 +32,50 @@ if torch.is_tensor(dataset):
         nb_base = 351
         nb_val = 97
         nb_novel = 160
-
-
-assert(num_classes+num_shots < dataset.shape[1])
-
-
-
-dim = dataset.shape[-1]
-
-
-
-semantic_features = torch.load(args.semantic_features, map_location=torch.device(device))
-semantic_features_n = semantic_features[nb_novel+nb_val:] 
-distances_n = torch.cdist(semantic_features_n,semantic_features_n)
-
-
-
-if False:
-    feat_train = dataset['base']
-    feat_val = dataset['val']
-    feat_novel = dataset['novel']
-    average = feat_train[:64].reshape(-1, feat_train.shape[-1]).mean(dim = 0)
-    s = feat_novel.shape
-    feat_novel = feat_novel.reshape(-1, feat_novel.shape[-1]) - average
-    feat_novel = feat_novel / torch.norm(feat_novel, dim = 1, keepdim = True)
-    feat_novel = feat_novel.reshape(s)
-    ini_centroids = feat_train[:64].mean(dim = 1)
-
-
-else:
+    else:
+        raise ValueError('features not accepted (only mini and tiered)')
+    
     shape = dataset.shape
     average = dataset[:nb_base].reshape(-1, dataset.shape[-1]).mean(dim = 0)
     dataset = dataset.reshape(-1, dataset.shape[-1]) - average
     dataset = dataset / torch.norm(dataset, dim = 1, keepdim = True)
     dataset = dataset.reshape(shape)
-    ini_centroids = dataset[:64].mean(dim = 1)
-
-
-
-# identifying base classes contributions
+    ini_centroids = dataset[:nb_base].mean(dim = 1)
+else:
+    base_features = dataset['base']
+    val_features = dataset['val']
+    novel_features = dataset['novel']
+    nb_base = base_features.shape[0]
+    nb_val = val_features.shape[0]
+    nb_novel = novel_features.shape[0]
+    average = base_features[:nb_base].reshape(-1, base_features.shape[-1]).mean(dim = 0)
+    s = novel_features.shape
+    novel_features = novel_features.reshape(-1, novel_features.shape[-1]) - average
+    novel_features = novel_features / torch.norm(novel_features, dim = 1, keepdim = True)
+    novel_features = novel_features.reshape(s)
+    ini_centroids = base_features[:nb_base].mean(dim = 1)
+    dataset = novel_features
+    assert (not args.semantic_difficulty)
 
 
 u, _, v = torch.svd(ini_centroids)
 
-centroids = torch.matmul(u, v.transpose(0,1))
+centroids = torch.matmul(u, v.transpose(0,1))  #orthogonalization
+
+assert(num_classes+num_shots < dataset.shape[1])
+
+
+dim = dataset.shape[-1]
+
+
+if args.semantic_difficulty:
+    semantic_features = torch.load(args.semantic_features, map_location=torch.device(device))
+    semantic_features_n = semantic_features[nb_novel+nb_val:] 
+    distances_n = torch.cdist(semantic_features_n,semantic_features_n)
+
+
+
+
 #centroids = torch.randn(64,640).to(device)*0.04
 #torch.einsum("nd,nd->n", ini_centroids / torch.norm(ini_centroids,dim = 1, keepdim = True), centroids)
 
@@ -83,21 +85,19 @@ centroids = torch.matmul(u, v.transpose(0,1))
 class Mask(nn.Module):
     def __init__(self):
         super(Mask, self).__init__()
-        self.mask = nn.Parameter(torch.ones(64)*0.5)
+        self.mask = nn.Parameter(torch.ones(nb_base)*0.5)
     def forward(self, x):
         contribs = torch.einsum("csd,bd->csb", x, centroids)
         remove_contribs = torch.clamp(self.mask.unsqueeze(0).unsqueeze(0), 0, 1) * contribs
         return x - torch.einsum("csb,bd->csd", remove_contribs, centroids)
 
 
-st_novel = 351 + 97 
 
-
-def generate_run(num_classes = num_classes, num_shots = num_shots, num_queries = num_queries, dmax= 6.5 ,label= labels[st_novel:]):
-    if args.semantic_diffculty:
-        classes = run_classes_sample(semantic_features_n,n_ways = num_classes, dmax=dmax,n_runs = 1 , distances=distances_n,maxiter = 1000, label = label).long() + st_novel
+def generate_run(num_classes = num_classes, num_shots = num_shots, num_queries = num_queries, dmax= 6.5 ,label=None ):
+    if args.semantic_difficulty:
+        classes = run_classes_sample(semantic_features_n,n_ways = num_classes, dmax=dmax,n_runs = 1 , distances=distances_n,maxiter = 1000, label = labels[nb_base+nb_val:].long() )+ nb_novel + nb_val
     else:
-        classes = torch.randperm(nb_novel)[:num_classes] + nb_base + nb_val
+        classes = torch.randperm(nb_novel)[:num_classes].unsqueeze(0) + nb_base + nb_val
     run = torch.zeros(num_classes, num_shots + num_queries, dataset.shape[-1]).to(device)
     for i in range(num_classes):
         run[i] = dataset[classes[0][i]][torch.randperm(dataset.shape[1])[:num_shots + num_queries]]
