@@ -2,11 +2,11 @@ from logging import raiseExceptions
 import torch
 from PIL import Image
 import numpy as np
+from args import args
 
 
-dire = '/users/local/datasets/tieredimagenet/'
 
-file = dire[:-15] +'labels_tiered.txt'
+file = str(args.labels)
 f=open(file,"r")
 f.readline()
 lines=f.readlines()
@@ -21,7 +21,7 @@ for x in lines:
 f.close()
 
 import pickle
-open_file = open( dire[:-15] +'Tiered_codes.txt', "rb")
+open_file = open( str(args.codes), "rb")
 L_index = pickle.load(open_file)
 open_file.close()
 

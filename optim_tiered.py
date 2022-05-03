@@ -4,30 +4,45 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import sys
-from word_embedding import *
-torch.manual_seed(0)
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
+from args import args
+if args.semantic_difficulty:
+    from word_embedding import *
 
-num_classes = 5
-num_shots = 2
-num_queries =58
-dim = 640
-T = int(sys.argv[3])
+torch.manual_seed(0)
+device = args.device
+
+num_classes = args.n_ways
+num_shots = args.n_shots
+num_queries = args.n_queries
+T = args.transductive_temperature_softkmeans
 print("nways = {}, n_shots = {}, T={}".format(num_classes,num_shots,T))
 
 
 # loading / preprocessing the dataset
-try:
-    dataset = torch.load('/users/local/r21lafar/features/tiered/tieredfeatures2.pt11', map_location=torch.device(device))
-except:
-    dataset = torch.load(str(sys.argv[6]), map_location=torch.device(device))
-#shape = dataset.shape
-semantic_features = torch.load('/users/local/r21lafar/features/tiered/tiered_semantic_features.pt', map_location=torch.device(device))
-st_novel = 351 + 97
-print(dataset.shape)
-semantic_features_n = semantic_features[st_novel:] 
+
+dataset = torch.load(str(args.test_features), map_location=torch.device(device))
+if torch.is_tensor(dataset):
+    if dataset.shape[0]==100:
+        nb_base = 64
+        nb_val = 16
+        nb_novel = 20
+    else:
+        print(dataset.shape)
+
+
+assert(num_classes+num_shots < dataset.shape[1])
+
+
+
+dim = dataset.shape[-1]
+
+
+
+semantic_features = torch.load(args.semantic_features, map_location=torch.device(device))
+semantic_features_n = semantic_features[nb_novel+nb_val:] 
 distances_n = torch.cdist(semantic_features_n,semantic_features_n)
-print(semantic_features_n.shape, distances_n.shape)
+
+
 
 if False:
     feat_train = dataset['base']
@@ -77,7 +92,10 @@ st_novel = 351 + 97
 
 
 def generate_run(num_classes = num_classes, num_shots = num_shots, num_queries = num_queries, dmax= 6.5 ,label= labels[st_novel:]):
-    classes = run_classes_sample(semantic_features_n,n_ways = num_classes, dmax=dmax,n_runs = 1 , distances=distances_n,maxiter = 1000, label = label).long() + st_novel
+    if args.semantic_diffculty:
+        classes = run_classes_sample(semantic_features_n,n_ways = num_classes, dmax=dmax,n_runs = 1 , distances=distances_n,maxiter = 1000, label = label).long() + st_novel
+    else:
+        classes = torch.randperm(nb_novel)[:num_classes] + nb_base + nb_val
     run = torch.zeros(num_classes, num_shots + num_queries, dataset.shape[-1]).to(device)
     for i in range(num_classes):
         run[i] = dataset[classes[0][i]][torch.randperm(dataset.shape[1])[:num_shots + num_queries]]
@@ -212,7 +230,7 @@ def test(n_tests, wd = 0, loss_fn =ncm_loss, eval_fn = ncm):
     for test in range(n_tests):
         run = generate_run()
         mask = Mask().to(device)
-        optimizer = torch.optim.Adam(mask.parameters(), lr = 1e-3,  weight_decay = wd)
+        optimizer = torch.optim.Adam(mask.parameters(), lr = args.lr,  weight_decay = wd)
         #pre += ncm(run)
         pre += eval_fn(run)
         for i in range(1000):
@@ -231,4 +249,4 @@ def test(n_tests, wd = 0, loss_fn =ncm_loss, eval_fn = ncm):
     print("\r{:.4f} {:.4f}   {:.4f}   ".format(pre.item() / n_tests, post.item() / n_tests,(post.item()-pre.item()) / n_tests) )
 
 #alloc = transductive(run)
-test(int(sys.argv[1]), wd = float(sys.argv[2]), loss_fn = eval(sys.argv[4]), eval_fn = eval(sys.argv[5]))
+test(int(args.n_runs), wd = float(args.wd), loss_fn = eval(args.loss_fn), eval_fn = eval(args.eval_fn))
