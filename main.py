@@ -26,8 +26,10 @@ if torch.is_tensor(dataset):
         nb_base = 64
         nb_val = 16
         nb_novel = 20
-    else:
-        print(dataset.shape)
+    if dataset.shape[0]==608:
+        nb_base = 351
+        nb_val = 97
+        nb_novel = 160
 
 
 assert(num_classes+num_shots < dataset.shape[1])
@@ -58,7 +60,7 @@ if False:
 
 else:
     shape = dataset.shape
-    average = dataset[:64].reshape(-1, dataset.shape[-1]).mean(dim = 0)
+    average = dataset[:nb_base].reshape(-1, dataset.shape[-1]).mean(dim = 0)
     dataset = dataset.reshape(-1, dataset.shape[-1]) - average
     dataset = dataset / torch.norm(dataset, dim = 1, keepdim = True)
     dataset = dataset.reshape(shape)
