@@ -249,9 +249,6 @@ def test(n_tests, wd = 0, loss_fn =ncm_loss, eval_fn = ncm):
                 loss = loss_fn(mask(run))
             loss.backward()
             optimizer.step()
-
-            
-
         post += eval_fn(mask(run))
         print("\r{:3d}% {:.4f} {:.4f} {:.4f}".format(int(100 * (test+1) / n_tests), pre.item() / (test+1), post.item() / (test+1),(post.item()-pre.item()) / (test+1)), end = '')
     print("\r{:.4f} {:.4f}   {:.4f}   ".format(pre.item() / n_tests, post.item() / n_tests,(post.item()-pre.item()) / n_tests) )
