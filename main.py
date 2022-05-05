@@ -27,10 +27,13 @@ if torch.is_tensor(dataset):
     print(f'{dataset.shape=}')
 
     if dataset.shape[0]==100:
+        elements_per_class = [600]*100
         nb_base = 64
         nb_val = 16
         nb_novel = 20
     elif dataset.shape[0]==608:
+        elements_per_class = torch.load(args.elts_class)
+        elements_per_class = elements_per_class['train']+elements_per_class['val']+elements_per_class['test']
         nb_base = 351
         nb_val = 97
         nb_novel = 160
@@ -38,12 +41,12 @@ if torch.is_tensor(dataset):
         raise ValueError('features not accepted (only mini and tiered)')
     
     shape = dataset.shape
-    average = dataset[:nb_base].reshape(-1, dataset.shape[-1]).mean(dim = 0)
+    average = torch.stack([dataset[i, :int(elements_per_class[i])].mean(dim = 0) for i in range(nb_base)]).mean(dim = 0)
     dataset = dataset.reshape(-1, dataset.shape[-1]) - average
     dataset = dataset / torch.norm(dataset, dim = 1, keepdim = True)
     dataset = dataset.reshape(shape)
     ini_centroids = dataset[:nb_base].mean(dim = 1)
-    dataset = dataset[-nb_novel:]
+    dataset_n = dataset[-nb_novel:]
 else:
     base_features = dataset['base']
     val_features = dataset['val']
@@ -57,7 +60,7 @@ else:
     novel_features = novel_features / torch.norm(novel_features, dim = 1, keepdim = True)
     novel_features = novel_features.reshape(s)
     ini_centroids = base_features[:nb_base].mean(dim = 1)
-    dataset = novel_features
+    dataset_n = novel_features
     assert (not args.semantic_difficulty)
 
 
@@ -104,10 +107,10 @@ def generate_run(num_classes = num_classes, num_shots = num_shots, num_queries =
         classes = run_classes_sample(semantic_features_n,n_ways = num_classes, dmax=dmax,n_runs = 1 , distances=distances_n,maxiter = 1000, label = labels[nb_base+nb_val:] ).long()
     else:
         classes = torch.randperm(nb_novel)[:num_classes].unsqueeze(0) 
-    run = torch.zeros(num_classes, num_shots + num_queries, dataset.shape[-1]).to(device)
+    samples = []
     for i in range(num_classes):
-        run[i] = dataset[classes[0][i]][torch.randperm(dataset.shape[1])[:num_shots + num_queries]]
-    return run
+        samples.append(dataset_n[classes[i], torch.randperm(elements_per_class[classes[i]])[:num_shots+num_queries]])
+    return torch.max(torch.norm(centroids[classes[:num_classes]].unsqueeze(0) - centroids[classes[:num_classes]].unsqueeze(1))), torch.stack(samples)
 # ncm
 
 

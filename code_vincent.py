@@ -1,6 +1,9 @@
+from scipy.misc import central_diff_weights
 import torch
-device  = torch.device('cuda')
-dataset = torch.load('/users/local/r21lafar/features/tiered/tieredfeatures2.pt11', map_location=device)
+from args import args
+import matplotlib.pyplot as plt
+device  = torch.device(args.device)
+dataset = torch.load(args.test_features, map_location=device)
 
 base = 351
 
@@ -16,15 +19,36 @@ mean = torch.stack([dataset[i, :int(elements_per_class[i])].mean(dim = 0) for i 
 
 dataset = dataset - mean.unsqueeze(0).unsqueeze(0)
 dataset = dataset / torch.norm(dataset, dim = 2, keepdim = True)
-n_ways = 5
-n_shots = 5
-n_queries = 150
+n_ways = args.n_ways
+n_shots = args.n_shots
+n_queries = args.n_queries
 
 centroids = torch.stack([dataset[i,:elements_per_class[i]].mean(dim=0) for i in range(dataset.shape[0])])
+print(centroids.shape)
 
-# u, _, v = torch.svd(centroids[:base])
+u, _, v = torch.svd(centroids[:base])
+new_centroids =  torch.matmul(u, v.transpose(0,1))
 
-# centroids[:base] = torch.matmul(u, v.transpose(0,1))
+print(f'{new_centroids.shape = } {centroids[:base].shape = }')
+plt.figure()
+plt.imshow((centroids[:base] @ centroids[:base].T).cpu())
+plt.colorbar()
+plt.savefig('0.png')
+plt.figure()
+plt.imshow((centroids[:base] @ new_centroids.T).cpu())
+plt.colorbar()
+plt.savefig('1.png')
+print('\n \n separate \n \n ')
+plt.figure()
+plt.imshow((new_centroids @ new_centroids.T).cpu())
+plt.colorbar()
+plt.show()
+plt.savefig('2.png')
+print('\n \n separate \n \n ')
+plt.figure()
+plt.imshow((centroids[:base] @ new_centroids.T - new_centroids @ new_centroids.T).cpu())
+plt.colorbar()
+plt.savefig('3.png')
 
 def generate_run(n_ways=n_ways, n_shots=n_shots, n_queries=n_queries):
     samples = []

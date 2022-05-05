@@ -19,6 +19,9 @@ parser.add_argument("--device", type=str, default="cuda:0", help="device(s) to u
 
 ### run options
 parser.add_argument("--wd", type=float, default=0.01, help="weight decay")
+
+parser.add_argument("--elts-class", type=str, default="/users/local/datasets/tieredimagenet/num_elements.pt", help="test features and exit")
+
 parser.add_argument("--test-features", type=str, default='/users/local/r21lafar/features/tiered/tieredfeatures2.pt11', help="test features and exit")
 parser.add_argument("--semantic-features", type=str, default='/users/local/r21lafar/features/tiered/tiered_semantic_features.pt', help="load text features")
 parser.add_argument("--labels", type=str, default='/users/local/datasets/labels_tiered.txt', help="load labels")
