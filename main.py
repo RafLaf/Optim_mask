@@ -5,6 +5,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 import sys
 from args import args
+from loss_eval import *
+import numpy as np
+
+
 print(args)
 
 if args.semantic_difficulty:
@@ -45,7 +49,7 @@ if torch.is_tensor(dataset):
     dataset = dataset.reshape(-1, dataset.shape[-1]) - average
     dataset = dataset / torch.norm(dataset, dim = 1, keepdim = True)
     dataset = dataset.reshape(shape)
-    ini_centroids = dataset[:nb_base].mean(dim = 1)
+    ini_centroids = dataset.mean(dim = 1)
     dataset_n = dataset[-nb_novel:]
 else:
     base_features = dataset['base']
@@ -59,14 +63,14 @@ else:
     novel_features = novel_features.reshape(-1, novel_features.shape[-1]) - average
     novel_features = novel_features / torch.norm(novel_features, dim = 1, keepdim = True)
     novel_features = novel_features.reshape(s)
-    ini_centroids = base_features[:nb_base].mean(dim = 1)
+    ini_centroids = base_features.mean(dim = 1)
     dataset_n = novel_features
     assert (not args.semantic_difficulty)
 
 
-u, _, v = torch.svd(ini_centroids)
-
-centroids = torch.matmul(u, v.transpose(0,1))  #orthogonalization
+u, _, v = torch.svd(ini_centroids[:nb_base])
+centroids = ini_centroids
+#centroids[:nb_base] = torch.matmul(u, v.transpose(0,1))  #orthogonalization
 
 assert(num_classes+num_shots < dataset.shape[1])
 
@@ -82,6 +86,12 @@ if args.semantic_difficulty:
         raise ValueError('PLEASE MAKE SURE semantic features correspond to visual features (NOT the same size here)')
     distances_n = torch.cdist(semantic_features_n,semantic_features_n)
 
+
+def project(run, i):
+    ncentroid = centroids[i]
+    ncentroid = ncentroid / torch.norm(ncentroid, dim = 0)
+    run = run - torch.einsum("csd,d->cs", run, ncentroid).unsqueeze(2) * ncentroid.unsqueeze(0).unsqueeze(0)
+    return run / torch.norm(run, dim = 2, keepdim = True)
 
 
 
@@ -109,128 +119,16 @@ def generate_run(num_classes = num_classes, num_shots = num_shots, num_queries =
         classes = torch.randperm(nb_novel)[:num_classes].unsqueeze(0) 
     samples = []
     for i in range(num_classes):
-        samples.append(dataset_n[classes[i], torch.randperm(elements_per_class[classes[i]])[:num_shots+num_queries]])
-    return torch.max(torch.norm(centroids[classes[:num_classes]].unsqueeze(0) - centroids[classes[:num_classes]].unsqueeze(1))), torch.stack(samples)
+        samples.append(dataset_n[classes[0][i], torch.randperm(elements_per_class[nb_base+nb_val+classes[0][i]])[:num_shots+num_queries]])
+    return torch.max(torch.norm(centroids[nb_base+ nb_val+ classes[0][:num_classes]].unsqueeze(0) - centroids[nb_base+ nb_val+ classes[0][:num_classes]].unsqueeze(1))), torch.stack(samples)
 # ncm
 
 
 # compute snr
 
-def snr(x, num_classes = num_classes):
-    snrs = 0.
-    for i in range(num_classes):
-        for j in range(i, num_classes):
-            margin = torch.norm(x[i].mean(dim = 0) - x[j].mean(dim = 0), dim = 0)
-            std = 0.5 * (torch.norm(x[i] - x[i].mean(dim = 0, keepdim = True), dim = 1).mean() + torch.norm(x[j] - x[j].mean(dim = 0, keepdim = True), dim = 1).sum())
-            snrs += margin / std
-    return snrs / (num_classes * (num_classes - 1)) * 2
-
-def ncm_loss(run):
-    centroids = run[:,:num_shots].mean(dim = 1)
-    dists = torch.norm(run[:,:].unsqueeze(2) - centroids.unsqueeze(0).unsqueeze(0), dim = 3)
-    sims = (-1 * dists).reshape(-1, run.shape[0])
-    targets = torch.repeat_interleave(torch.arange(run.shape[0]), dists.shape[1]).to(device)
-    return nn.CrossEntropyLoss()(sims, targets)
-
-
-# generation of runs
-
-def ncm(run, num_shots = num_shots):
-    centroids = run[:,:num_shots].mean(dim = 1)
-    dists = torch.norm(run[:,num_shots:].unsqueeze(2) - centroids.unsqueeze(0).unsqueeze(0), dim = 3)
-    mins = torch.min(dists, dim = 2)[1]
-    return (mins == torch.arange(run.shape[0]).unsqueeze(1).to(device)).float().mean()
-
-
-def transductive_ncm_loss(run,num_shots = num_shots ):
-    with torch.no_grad():
-        means = torch.mean(run[:,:num_shots], dim = 1)
-        for i in range(30):
-            similarities = torch.norm(run[:,num_shots:].reshape( -1, 1, run.shape[-1]) - means.reshape( 1, num_classes, run.shape[-1]), dim = 2, p = 2)
-            soft_allocations = F.softmax(-similarities.pow(2)*T,dim =1)
-            means = torch.sum(run[:,:num_shots], dim = 1) + torch.einsum("sw,sd->wd", soft_allocations, run[:,num_shots:].reshape(-1, run.shape[2]))
-            means = means/(num_shots+soft_allocations.sum(dim = 0).reshape(-1, 1))
-    dists = torch.norm(run[:,:].unsqueeze(2) - means.unsqueeze(0).unsqueeze(0), dim = 3)
-    sims = (-1 * dists).reshape(-1, run.shape[0])
-    targets = torch.repeat_interleave(torch.arange(run.shape[0]), dists.shape[1]).to(device)
-    return  nn.CrossEntropyLoss()(sims, targets)
-
-
-def transductive_loss(run,num_shots = num_shots ):
-    #with torch.no_grad():
-    means = torch.mean(run[:,:num_shots], dim = 1)
-    for i in range(30):
-        similarities = torch.norm(run[:,num_shots:].reshape( -1, 1, run.shape[-1]) - means.reshape( 1, num_classes, run.shape[-1]), dim = 2, p = 2)
-        soft_allocations = F.softmax(-similarities.pow(2)*T,dim =1)
-        means = torch.sum(run[:,:num_shots], dim = 1) + torch.einsum("sw,sd->wd", soft_allocations, run[:,num_shots:].reshape(-1, run.shape[2]))
-        means = means/(num_shots+soft_allocations.sum(dim = 0).reshape(-1, 1))
-    dists = torch.norm(run[:,:].unsqueeze(2) - means.unsqueeze(0).unsqueeze(0), dim = 3)
-    sims = (-1 * dists).reshape(-1, run.shape[0])
-    targets = torch.repeat_interleave(torch.arange(run.shape[0]), dists.shape[1]).to(device)
-    return  nn.CrossEntropyLoss()(sims, targets)
-
-def kmeans(run,num_shots = num_shots ):
-    with torch.no_grad():
-        means = torch.mean(run[:,:num_shots], dim = 1)
-        for i in range(30):
-            similarities = torch.norm(run[:,num_shots:].reshape( -1, 1, run.shape[-1]) - means.reshape( 1, num_classes, run.shape[-1]), dim = 2, p = 2)
-            soft_allocations = F.softmax(-similarities.pow(2)*T,dim =1)
-            means = torch.sum(run[:,:num_shots], dim = 1) + torch.einsum("sw,sd->wd", soft_allocations, run[:,num_shots:].reshape(-1, run.shape[2]))
-            means = means/(num_shots+soft_allocations.sum(dim = 0).reshape(-1, 1))
-    dists = torch.norm(run[:,num_shots:].unsqueeze(2) - means.unsqueeze(0).unsqueeze(0), dim = 3)
-    mins = torch.min(dists, dim = 2)[1]
-    return (mins == torch.arange(run.shape[0]).unsqueeze(1).to(device)).float().mean()
-
-
-def kmeans_alloc(run,num_shots = num_shots ):
-    with torch.no_grad():
-        means = torch.mean(run[:,:num_shots], dim = 1)
-        for i in range(30):
-            similarities = torch.norm(run[:,num_shots:].reshape( -1, 1, run.shape[-1]) - means.reshape( 1, num_classes, run.shape[-1]), dim = 2, p = 2)
-            soft_allocations = F.softmax(-similarities.pow(2)*T,dim =1)
-            means = torch.sum(run[:,:num_shots], dim = 1) + torch.einsum("sw,sd->wd", soft_allocations, run[:,num_shots:].reshape(-1, run.shape[2]))
-            means = means/(num_shots+soft_allocations.sum(dim = 0).reshape(-1, 1))
-    support = run[:,:num_shots]
-    queries = run[:,num_shots:].reshape(-1,run.shape[-1])
-    return support, queries , soft_allocations
-
-
-
-def sil_score_coorected(support,queries, soft_allocation):
-    s = support.shape
-    support_reshaped  =support.reshape( -1 , s[-1])
-    samples = torch.cat((support_reshaped, queries), dim =0 )
-    target = torch.zeros(support_reshaped.shape[0], num_classes).to(device)
-    for i in range(num_classes):
-        for j in range(num_shots):
-            target[i*num_shots + j,i]=1
-    soft_alloc = torch.cat((target, soft_allocation), dim = 0)
-    soft_allocations_normalized = soft_alloc/ soft_alloc.sum(0, keepdim= True)
-    coef = torch.einsum('jl, ik -> jilk', soft_allocations_normalized,soft_allocations_normalized)
-    norm = torch.sum(coef, dim = (0,1) ) 
-    coef = coef/norm
-    coef_a = torch.eye(coef.shape[-1]).to(device)
-    coef_b = (coef_a-1)*(-1)
-    d = torch.cdist(samples,samples)
-    a_d = torch.einsum('jilk, lk -> ji', coef, coef_a )
-    b_k_d = torch.einsum('jilk, lk -> jik', coef, coef_b )
-    a = torch.einsum('ji, ji -> i', a_d, d)
-    b_k = torch.einsum('jik, ji -> ik', b_k_d,d )
-    b = torch.min(b_k , dim = -1)[0]
-    s = (b-a)/torch.maximum(a,b)
-    return s.mean()
-
-
-
-def sil_loss(run):
-    support, queries , soft_allocations = kmeans_alloc(run)
-    s = sil_score_coorected(support,queries, soft_allocations)
-    return -s
-
-
 L_inductive = [snr, ncm_loss]
 
-def test(n_tests, wd = 0, loss_fn =ncm_loss, eval_fn = ncm):
+def test_mask(n_tests, wd = 0, loss_fn =ncm_loss, eval_fn = ncm):
     print(loss_fn, eval_fn)
     print('wd = {}'.format(wd))
     pre = 0.
@@ -257,4 +155,38 @@ def test(n_tests, wd = 0, loss_fn =ncm_loss, eval_fn = ncm):
     print("\r{:.4f} {:.4f}   {:.4f}   ".format(pre.item() / n_tests, post.item() / n_tests,(post.item()-pre.item()) / n_tests) )
 
 #alloc = transductive(run)
-test(int(args.n_runs), wd = float(args.wd), loss_fn = eval(args.loss_fn), eval_fn = eval(args.eval_fn))
+
+def test(confidence):
+    score_before = []
+    score_after = []
+    selectivities = []
+    for it in range(10000):
+        selectivity, run = generate_run()
+        # while selectivity >= mean - std and selectivity <= mean + std:
+        #     selectivity, run = generate_run()
+        selectivities.append(selectivity)
+        score_before.append(soft_k_means(run).item())
+        current_confidence = confidence(run)
+        for i in range(nb_base):
+            new_run = project(run, i)
+            new_confidence = confidence(new_run)
+            if new_confidence > current_confidence:
+                current_confidence = new_confidence
+                run = new_run
+        score_after.append(soft_k_means(run).item())
+        print("\r", end='')
+        for name,indexes in [("all", np.arange(it + 1)), ("hard",np.where(selectivities < mean - std)[0]), ("easy",np.where(selectivities > mean + std)[0])]:       
+            if len(indexes) > 0:
+                print("{:s} ({:4d}) {:.2f}% (boost: {:.2f}%) ".format(name, len(indexes), 100 * np.mean(np.array(score_after)[indexes]), 100 * (np.mean(np.array(score_after)[indexes]) - np.mean(np.array(score_before)[indexes]))), end='')
+        print("    ", end ='')
+    print()
+
+
+
+selectivities = []
+for _ in range(1000):
+    selectivity, run = generate_run()
+    selectivities.append(selectivity.item())
+mean, std = np.mean(selectivities), np.std(selectivities)
+#test_mask(int(args.n_runs), wd = float(args.wd), loss_fn = eval(args.loss_fn), eval_fn = eval(args.eval_fn))
+test(lambda x: ncm(x, confidence = True))

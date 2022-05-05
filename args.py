@@ -37,7 +37,7 @@ parser.add_argument("--n-queries", type=int, default=15, help="number of few-sho
 
 parser.add_argument("--semantic-difficulty" ,action="store_true", help="create hard problems")
 
-parser.add_argument("--transductive-temperature-softkmeans", type=float, default=10, help="temperature for few-shot transductive is using softkmeans")
+parser.add_argument("--transductive-temperature-softkmeans", type=float, default=5, help="temperature for few-shot transductive is using softkmeans")
 
 try :
     get_ipython()
