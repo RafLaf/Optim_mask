@@ -32,10 +32,11 @@ parser.add_argument("--wandb", type=str, default='', help="Report to wandb, inpu
 parser.add_argument("--n-shots", type=int, default=5, help="how many shots per few-shot run, can be int or list of ints. In case of episodic training, use first item of list as number of shots.")
 parser.add_argument("--n-runs", type=int, default=100, help="number of few-shot runs")
 parser.add_argument("--n-ways", type=int, default=5, help="number of few-shot ways")
-parser.add_argument("--n-queries", type=int, default=15, help="number of few-shot queries")
+parser.add_argument("--n-queries", type=int, default=150, help="number of few-shot queries")
 
-
+parser.add_argument("--ortho" ,action="store_true", help="create hard problems")
 parser.add_argument("--semantic-difficulty" ,action="store_true", help="create hard problems")
+parser.add_argument("--masking" ,action="store_true", help="create hard problems")
 
 parser.add_argument("--transductive-temperature-softkmeans", type=float, default=5, help="temperature for few-shot transductive is using softkmeans")
 

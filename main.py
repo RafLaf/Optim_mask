@@ -68,9 +68,14 @@ else:
     assert (not args.semantic_difficulty)
 
 
-u, _, v = torch.svd(ini_centroids[:nb_base])
+
+
+
 centroids = ini_centroids
-#centroids[:nb_base] = torch.matmul(u, v.transpose(0,1))  #orthogonalization
+if args.ortho:
+    u, _, v = torch.svd(ini_centroids[:nb_base])
+    centroids[:nb_base] = torch.matmul(u, v.transpose(0,1))  #orthogonalization
+
 
 assert(num_classes+num_shots < dataset.shape[1])
 
@@ -106,9 +111,9 @@ class Mask(nn.Module):
         super(Mask, self).__init__()
         self.mask = nn.Parameter(torch.ones(nb_base)*0.5)
     def forward(self, x):
-        contribs = torch.einsum("csd,bd->csb", x, centroids)
+        contribs = torch.einsum("csd,bd->csb", x, centroids[:nb_base])
         remove_contribs = torch.clamp(self.mask.unsqueeze(0).unsqueeze(0), 0, 1) * contribs
-        return x - torch.einsum("csb,bd->csd", remove_contribs, centroids)
+        return x - torch.einsum("csb,bd->csd", remove_contribs, centroids[:nb_base])
 
 
 
@@ -128,35 +133,52 @@ def generate_run(num_classes = num_classes, num_shots = num_shots, num_queries =
 
 L_inductive = [snr, ncm_loss]
 
-def test_mask(n_tests, wd = 0, loss_fn =ncm_loss, eval_fn = ncm):
+def test_mask(n_tests,wd = 0, loss_fn =ncm_loss, eval_fn = ncm, masking =args.masking):
     print(loss_fn, eval_fn)
     print('wd = {}'.format(wd))
-    pre = 0.
-    post = 0.
+    pre = []
+    post = []
     if loss_fn in L_inductive:
         print('no cheat inductive')
     print('')
+    selectivities =[]
     for test in range(n_tests):
-        run = generate_run()
+
+        selectivity,run = generate_run()
+        selectivities.append(selectivity)
         mask = Mask().to(device)
         optimizer = torch.optim.Adam(mask.parameters(), lr = args.lr,  weight_decay = wd)
         #pre += ncm(run)
-        pre += eval_fn(run)
-        for i in range(1000):
-            optimizer.zero_grad()
-            if loss_fn in L_inductive:
-                loss = loss_fn(mask(run[:,:num_shots]))
-            else:
-                loss = loss_fn(mask(run))
-            loss.backward()
-            optimizer.step()
-        post += eval_fn(mask(run))
-        print("\r{:3d}% {:.4f} {:.4f} {:.4f}".format(int(100 * (test+1) / n_tests), pre.item() / (test+1), post.item() / (test+1),(post.item()-pre.item()) / (test+1)), end = '')
-    print("\r{:.4f} {:.4f}   {:.4f}   ".format(pre.item() / n_tests, post.item() / n_tests,(post.item()-pre.item()) / n_tests) )
+        pre.append(eval_fn(run).item())
+        if masking:
+            for i in range(1000):
+                optimizer.zero_grad()
+                if loss_fn in L_inductive:
+                    loss = loss_fn(mask(run[:,:num_shots]))
+                else:
+                    loss = loss_fn(mask(run))
+                loss.backward()
+                optimizer.step()
+        else:
+            current_confidence = ncm(run, confidence=True)
+            for i in range(nb_base):
+                new_run = project(run, i)
+                new_confidence = ncm(new_run, confidence=True)
+                if new_confidence > current_confidence:
+                    current_confidence = new_confidence
+                    run = new_run
+        post.append( eval_fn(mask(run)).item())
+        print("\r", end='')
+        for name,indexes in [("all", np.arange(test + 1)), ("hard",np.where(selectivities < mean - std)[0]), ("easy",np.where(selectivities > mean + std)[0])]:      
+
+            if len(indexes) > 0:
+                print("{:s} ({:4d}) {:.2f}% (boost: {:.2f}%) ".format(name, len(indexes), 100 * np.mean(np.array(post)[indexes]), 100 * (np.mean(np.array(post)[indexes]) - np.mean(np.array(pre)[indexes]))), end='')
+        print("    ", end ='')
+    print()
 
 #alloc = transductive(run)
 
-def test(confidence):
+def test():
     score_before = []
     score_after = []
     selectivities = []
@@ -166,10 +188,10 @@ def test(confidence):
         #     selectivity, run = generate_run()
         selectivities.append(selectivity)
         score_before.append(soft_k_means(run).item())
-        current_confidence = confidence(run)
+        current_confidence = ncm(run, confidence=True)
         for i in range(nb_base):
             new_run = project(run, i)
-            new_confidence = confidence(new_run)
+            new_confidence = ncm(new_run, confidence=True)
             if new_confidence > current_confidence:
                 current_confidence = new_confidence
                 run = new_run
@@ -188,5 +210,4 @@ for _ in range(1000):
     selectivity, run = generate_run()
     selectivities.append(selectivity.item())
 mean, std = np.mean(selectivities), np.std(selectivities)
-#test_mask(int(args.n_runs), wd = float(args.wd), loss_fn = eval(args.loss_fn), eval_fn = eval(args.eval_fn))
-test(lambda x: ncm(x, confidence = True))
+test_mask(int(args.n_runs), wd = float(args.wd), loss_fn = eval(args.loss_fn), eval_fn = eval(args.eval_fn))
