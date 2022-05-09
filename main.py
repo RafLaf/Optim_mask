@@ -9,6 +9,18 @@ from loss_eval import *
 import numpy as np
 if args.wandb!='':
     import wandb
+    tag =[]
+    if args.masking:
+        tag.append ('masking')
+    else:
+        tag.append('iterate')
+    if args.ortho:
+        tag.append('ortho')
+    wandb.init(project="optim", 
+            entity=args.wandb, 
+            tags=tag, 
+            notes=str(vars(args))
+            )
 
 
 print(args)
@@ -135,7 +147,7 @@ def generate_run(num_classes = num_classes, num_shots = num_shots, num_queries =
 
 L_inductive = [snr, ncm_loss]
 
-def test_mask(n_tests,wd = 0, loss_fn =ncm_loss, eval_fn = ncm, masking =args.masking):
+def test(n_tests,wd = 0, loss_fn =ncm_loss, eval_fn = ncm, masking =args.masking, T = args.transductive_temperature_softkmeans):
     print(loss_fn, eval_fn)
     print('wd = {}'.format(wd))
     pre = []
@@ -144,6 +156,7 @@ def test_mask(n_tests,wd = 0, loss_fn =ncm_loss, eval_fn = ncm, masking =args.ma
         print('no cheat inductive')
     print('')
     selectivities =[]
+    results = {}
     for test in range(n_tests):
         selectivity,run = generate_run()
         selectivities.append(selectivity)
@@ -176,14 +189,33 @@ def test_mask(n_tests,wd = 0, loss_fn =ncm_loss, eval_fn = ncm, masking =args.ma
         for name,indexes in [("all", np.arange(test + 1)), ("hard",np.where(selectivities < mean - std)[0]), ("easy",np.where(selectivities > mean + std)[0])]:      
 
             if len(indexes) > 0:
+                results[name+'_len']= len(indexes)
+                results[name+'_post']=np.mean(np.array(post)[indexes])
+                results[name+'_boost']=( np.mean(np.array(post)[indexes]- np.mean(np.array(pre)[indexes])))
                 print("{:s} ({:4d}) {:.2f}% (boost: {:.2f}%) ".format(name, len(indexes), 100 * np.mean(np.array(post)[indexes]), 100 * (np.mean(np.array(post)[indexes]) - np.mean(np.array(pre)[indexes]))), end='')
         print("    ", end ='')
     print()
-
+    return results
 
 selectivities = []
 for _ in range(1000):
     selectivity, run = generate_run()
     selectivities.append(selectivity.item())
 mean, std = np.mean(selectivities), np.std(selectivities)
-test_mask(int(args.n_runs), wd = float(args.wd), loss_fn = eval(args.loss_fn), eval_fn = eval(args.eval_fn))
+
+
+list_wd = np.logspace(-5,1,100)
+list_lr = np.logspace(-5,1,10)
+
+if args.masking:
+    for wd in list_wd:
+        for lr in list_lr:
+            results = test(int(args.n_runs), wd = float(args.wd), loss_fn = eval(args.loss_fn), eval_fn = eval(args.eval_fn))
+            
+            results['wd'] = wd
+            results['lr'] = lr
+
+            wandb.log(results)
+else:
+    results = test(int(args.n_runs),  loss_fn = eval(args.loss_fn), eval_fn = eval(args.eval_fn))
+    wandb.log(results)
