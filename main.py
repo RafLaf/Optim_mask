@@ -111,7 +111,7 @@ def project(run, i):
 class Mask(nn.Module):
     def __init__(self):
         super(Mask, self).__init__()
-        self.mask = nn.Parameter(torch.ones(nb_base)*0.5)
+        self.mask = nn.Parameter(torch.ones(nb_base)*0.1)
     def forward(self, x):
         contribs = torch.einsum("csd,bd->csb", x, centroids[:nb_base])
         remove_contribs = torch.clamp(self.mask.unsqueeze(0).unsqueeze(0), 0, 1) * contribs
@@ -157,9 +157,11 @@ def test_mask(n_tests,wd = 0, loss_fn =ncm_loss, eval_fn = ncm, masking =args.ma
                     loss = loss_fn(mask(run[:,:num_shots]))
                 else:
                     loss = loss_fn(mask(run))
+                #print(loss.item())
                 loss.backward()
                 optimizer.step()
             post.append( eval_fn(mask(run)).item())
+            #print(mask.mask.sort())
         else:
             current_confidence = ncm(run, confidence=True)
             for i in range(nb_base):

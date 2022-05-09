@@ -37,7 +37,7 @@ def ncm(run, num_shots = args.n_shots, confidence = False):
         return (mins == torch.arange(run.shape[0]).unsqueeze(1).to(args.device)).float().mean()
 
 def ncm_confidence(run):
-    return ncm(run, confidence = True)
+    return -ncm(run, confidence = True)
 
 
 def transductive_ncm_loss(run,num_shots = args.n_shots ):
