@@ -7,6 +7,8 @@ import sys
 from args import args
 from loss_eval import *
 import numpy as np
+if args.wandb!='':
+    import wandb
 
 
 print(args)
@@ -143,14 +145,12 @@ def test_mask(n_tests,wd = 0, loss_fn =ncm_loss, eval_fn = ncm, masking =args.ma
     print('')
     selectivities =[]
     for test in range(n_tests):
-
         selectivity,run = generate_run()
         selectivities.append(selectivity)
-        mask = Mask().to(device)
-        optimizer = torch.optim.Adam(mask.parameters(), lr = args.lr,  weight_decay = wd)
-        #pre += ncm(run)
         pre.append(eval_fn(run).item())
         if masking:
+            mask = Mask().to(device)
+            optimizer = torch.optim.Adam(mask.parameters(), lr = args.lr,  weight_decay = wd)
             for i in range(1000):
                 optimizer.zero_grad()
                 if loss_fn in L_inductive:
@@ -159,6 +159,7 @@ def test_mask(n_tests,wd = 0, loss_fn =ncm_loss, eval_fn = ncm, masking =args.ma
                     loss = loss_fn(mask(run))
                 loss.backward()
                 optimizer.step()
+            post.append( eval_fn(mask(run)).item())
         else:
             current_confidence = ncm(run, confidence=True)
             for i in range(nb_base):
@@ -167,7 +168,8 @@ def test_mask(n_tests,wd = 0, loss_fn =ncm_loss, eval_fn = ncm, masking =args.ma
                 if new_confidence > current_confidence:
                     current_confidence = new_confidence
                     run = new_run
-        post.append( eval_fn(mask(run)).item())
+            post.append(soft_k_means(run).item())
+        
         print("\r", end='')
         for name,indexes in [("all", np.arange(test + 1)), ("hard",np.where(selectivities < mean - std)[0]), ("easy",np.where(selectivities > mean + std)[0])]:      
 
@@ -175,34 +177,6 @@ def test_mask(n_tests,wd = 0, loss_fn =ncm_loss, eval_fn = ncm, masking =args.ma
                 print("{:s} ({:4d}) {:.2f}% (boost: {:.2f}%) ".format(name, len(indexes), 100 * np.mean(np.array(post)[indexes]), 100 * (np.mean(np.array(post)[indexes]) - np.mean(np.array(pre)[indexes]))), end='')
         print("    ", end ='')
     print()
-
-#alloc = transductive(run)
-
-def test():
-    score_before = []
-    score_after = []
-    selectivities = []
-    for it in range(10000):
-        selectivity, run = generate_run()
-        # while selectivity >= mean - std and selectivity <= mean + std:
-        #     selectivity, run = generate_run()
-        selectivities.append(selectivity)
-        score_before.append(soft_k_means(run).item())
-        current_confidence = ncm(run, confidence=True)
-        for i in range(nb_base):
-            new_run = project(run, i)
-            new_confidence = ncm(new_run, confidence=True)
-            if new_confidence > current_confidence:
-                current_confidence = new_confidence
-                run = new_run
-        score_after.append(soft_k_means(run).item())
-        print("\r", end='')
-        for name,indexes in [("all", np.arange(it + 1)), ("hard",np.where(selectivities < mean - std)[0]), ("easy",np.where(selectivities > mean + std)[0])]:       
-            if len(indexes) > 0:
-                print("{:s} ({:4d}) {:.2f}% (boost: {:.2f}%) ".format(name, len(indexes), 100 * np.mean(np.array(score_after)[indexes]), 100 * (np.mean(np.array(score_after)[indexes]) - np.mean(np.array(score_before)[indexes]))), end='')
-        print("    ", end ='')
-    print()
-
 
 
 selectivities = []
