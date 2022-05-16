@@ -147,7 +147,7 @@ def generate_run(num_classes = num_classes, num_shots = num_shots, num_queries =
 
 L_inductive = [snr, ncm_loss]
 
-def test(n_tests,wd = 0, loss_fn =ncm_loss, eval_fn = ncm, masking =args.masking, T = args.transductive_temperature_softkmeans):
+def test(n_tests,wd = 0, loss_fn =ncm_loss, eval_fn = ncm, masking =args.masking, T = args.transductive_temperature_softkmeans, lr=args.lr):
     print(loss_fn, eval_fn)
     print('wd = {}'.format(wd))
     pre = []
@@ -163,7 +163,7 @@ def test(n_tests,wd = 0, loss_fn =ncm_loss, eval_fn = ncm, masking =args.masking
         pre.append(eval_fn(run).item())
         if masking:
             mask = Mask().to(device)
-            optimizer = torch.optim.Adam(mask.parameters(), lr = args.lr,  weight_decay = wd)
+            optimizer = torch.optim.Adam(mask.parameters(), lr = lr,  weight_decay = wd)
             for i in range(1000):
                 optimizer.zero_grad()
                 if loss_fn in L_inductive:
@@ -204,13 +204,13 @@ for _ in range(1000):
 mean, std = np.mean(selectivities), np.std(selectivities)
 
 
-list_wd = np.logspace(-5,1,100)
-list_lr = np.logspace(-5,1,10)
+list_wd = np.logspace(-4,-1,10)
+list_lr = np.logspace(-4,-1,5)
 
 if args.masking:
     for wd in list_wd:
         for lr in list_lr:
-            results = test(int(args.n_runs), wd = float(args.wd), loss_fn = eval(args.loss_fn), eval_fn = eval(args.eval_fn))
+            results = test(int(args.n_runs), wd = wd, loss_fn = eval(args.loss_fn), eval_fn = eval(args.eval_fn), lr = lr)
             
             results['wd'] = wd
             results['lr'] = lr
