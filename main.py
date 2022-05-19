@@ -183,7 +183,7 @@ def test(n_tests,wd = 0, loss_fn =ncm_loss, eval_fn = ncm, masking =args.masking
                 if new_confidence > current_confidence:
                     current_confidence = new_confidence
                     run = new_run
-            post.append(soft_k_means(run).item())
+            post.append(eval_fn(run).item())
         
         print("\r", end='')
         for name,indexes in [("all", np.arange(test + 1)), ("hard",np.where(selectivities < mean - std)[0]), ("easy",np.where(selectivities > mean + std)[0])]:      
@@ -204,18 +204,21 @@ for _ in range(1000):
 mean, std = np.mean(selectivities), np.std(selectivities)
 
 
-list_wd = np.logspace(-4,-1,10)
-list_lr = np.logspace(-4,-1,5)
+list_wd = np.logspace(-4,-1,3)
+list_lr = np.logspace(-2,-3,3)
+if args.parameter_scan:
 
-if args.masking:
-    for wd in list_wd:
-        for lr in list_lr:
-            results = test(int(args.n_runs), wd = wd, loss_fn = eval(args.loss_fn), eval_fn = eval(args.eval_fn), lr = lr)
-            
-            results['wd'] = wd
-            results['lr'] = lr
+    if args.masking:
+        for wd in list_wd:
+            for lr in list_lr:
+                results = test(int(args.n_runs), wd = wd, loss_fn = eval(args.loss_fn), eval_fn = eval(args.eval_fn), lr = lr)
+                
+                results['wd'] = wd
+                results['lr'] = lr
 
-            wandb.log(results)
+                wandb.log(results)
+    else:
+        results = test(int(args.n_runs),  loss_fn = eval(args.loss_fn), eval_fn = eval(args.eval_fn))
+        wandb.log(results)
 else:
-    results = test(int(args.n_runs),  loss_fn = eval(args.loss_fn), eval_fn = eval(args.eval_fn))
-    wandb.log(results)
+    results = test(int(args.n_runs), wd = args.wd, loss_fn = eval(args.loss_fn), eval_fn = eval(args.eval_fn), lr = args.lr)

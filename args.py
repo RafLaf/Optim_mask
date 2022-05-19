@@ -35,6 +35,10 @@ parser.add_argument("--n-ways", type=int, default=5, help="number of few-shot wa
 parser.add_argument("--n-queries", type=int, default=150, help="number of few-shot queries")
 
 parser.add_argument("--ortho" ,action="store_true", help="create hard problems")
+parser.add_argument("--soft" ,action="store_true", help="soft or normal kmeans")
+parser.add_argument("--parameter-scan" ,action="store_true", help="scan lr and wd")
+
+
 parser.add_argument("--semantic-difficulty" ,action="store_true", help="create hard problems")
 parser.add_argument("--masking" ,action="store_true", help="create hard problems")
 

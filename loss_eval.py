@@ -87,8 +87,27 @@ def soft_k_means(run,num_shots = args.n_shots,num_classes =args.n_ways ,alloc =F
         return (torch.argmin(dists, dim = 2) - torch.arange(5).unsqueeze(1).to(args.device) == 0).float().mean()
 
 
+def k_means(run,num_shots = args.n_shots,num_classes =args.n_ways ,alloc =False,confidence=False ):
+    with torch.no_grad():
+        means = torch.mean(run[:,:num_shots], dim = 1)
+        for i in range(30):
+            similarities = torch.norm(run[:,num_shots:].reshape( -1, 1, run.shape[-1]) - means.reshape( 1, num_classes, run.shape[-1]), dim = 2, p = 2)
+            hard_alloc = F.one_hot(torch.argmin(similarities, dim=1), num_classes = similarities.shape[1]).float()
+            means = torch.sum(run[:,:num_shots], dim = 1) + torch.einsum("sd,sw->wd",run[:,num_shots:].reshape(-1, run.shape[2]), hard_alloc)
+            means = means/(num_shots+hard_alloc.sum(dim = 0).reshape(-1, 1))
+    support = run[:,:num_shots]
+    queries = run[:,num_shots:].reshape(-1,run.shape[-1])
+    if alloc:
+        return support, queries , hard_alloc
+    dists = torch.norm(run[:,num_shots:].unsqueeze(2) - means.unsqueeze(0).unsqueeze(0), dim = 3)
+    mins = torch.min(dists, dim = 2)[1]
+    if confidence:
+        return (torch.max(torch.softmax(-1 * torch.pow(dists,0.5), dim = 2), dim = 2)[0]).mean()
+    else:
+        return (torch.argmin(dists, dim = 2) - torch.arange(5).unsqueeze(1).to(args.device) == 0).float().mean()
 
-
+def kmeans_confidence(run):
+    return k_means(run,confidence=True)
 
 
 def sil_score_corrected(support,queries, soft_allocation, num_classes = args.n_ways, num_shots = args.n_shots ):
@@ -117,8 +136,12 @@ def sil_score_corrected(support,queries, soft_allocation, num_classes = args.n_w
 
 
 
-def sil_loss(run):
-    support, queries , soft_allocations = soft_k_means(run, alloc=True)
+def sil_loss(run, soft=args.soft):
+    if soft :
+            support, queries , soft_allocations = k_means(run, alloc=True)
+    else:
+        support, queries , soft_allocations = soft_k_means(run, alloc=True)
+
     s = sil_score_corrected(support,queries, soft_allocations)
     return -s
 
