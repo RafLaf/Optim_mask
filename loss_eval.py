@@ -91,7 +91,7 @@ def soft_k_means(run,num_shots = args.n_shots,num_classes =args.n_ways ,alloc =F
 
 
 
-def sil_score_coorected(support,queries, soft_allocation, num_classes = args.n_ways, num_shots = args.n_shots ):
+def sil_score_corrected(support,queries, soft_allocation, num_classes = args.n_ways, num_shots = args.n_shots ):
     s = support.shape
     support_reshaped  =support.reshape( -1 , s[-1])
     samples = torch.cat((support_reshaped, queries), dim =0 )
@@ -119,7 +119,7 @@ def sil_score_coorected(support,queries, soft_allocation, num_classes = args.n_w
 
 def sil_loss(run):
     support, queries , soft_allocations = soft_k_means(run, alloc=True)
-    s = sil_score_coorected(support,queries, soft_allocations)
+    s = sil_score_corrected(support,queries, soft_allocations)
     return -s
 
 
