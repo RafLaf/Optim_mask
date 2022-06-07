@@ -30,7 +30,7 @@ def ncm(run, num_shots = args.n_shots, confidence = False):
     centroids = run[:,:num_shots].mean(dim = 1)
     dists = torch.norm(run[:,num_shots:].unsqueeze(2) - centroids.unsqueeze(0).unsqueeze(0), dim = 3)
     if confidence:
-        sims = torch.softmax((-5 * dists).reshape(-1, run.shape[0]), dim = 1)
+        sims = torch.softmax((-T * dists).reshape(-1, run.shape[0]), dim = 1)
         return torch.max(sims, dim = 1)[0].mean()
     else:
         mins = torch.min(dists, dim = 2)[1]
@@ -87,7 +87,7 @@ def soft_k_means(run,num_shots = args.n_shots,num_classes =args.n_ways ,alloc =F
         return (torch.argmin(dists, dim = 2) - torch.arange(5).unsqueeze(1).to(args.device) == 0).float().mean()
 
 
-def k_means(run,num_shots = args.n_shots,num_classes =args.n_ways ,alloc =False,confidence=False ):
+def kmeans(run,num_shots = args.n_shots,num_classes =args.n_ways ,alloc =False,confidence=False ):
     with torch.no_grad():
         means = torch.mean(run[:,:num_shots], dim = 1)
         for i in range(30):
@@ -107,7 +107,7 @@ def k_means(run,num_shots = args.n_shots,num_classes =args.n_ways ,alloc =False,
         return (torch.argmin(dists, dim = 2) - torch.arange(5).unsqueeze(1).to(args.device) == 0).float().mean()
 
 def kmeans_confidence(run):
-    return k_means(run,confidence=True)
+    return kmeans(run,confidence=True)
 
 
 def sil_score_corrected(support,queries, soft_allocation, num_classes = args.n_ways, num_shots = args.n_shots ):

@@ -149,7 +149,8 @@ L_inductive = [snr, ncm_loss]
 
 def test(n_tests,wd = 0, loss_fn =ncm_loss, eval_fn = ncm, masking =args.masking, T = args.transductive_temperature_softkmeans, lr=args.lr):
     print(loss_fn, eval_fn)
-    print('wd = {}'.format(wd))
+    if args.masking:
+        print('wd = {}'.format(wd))
     pre = []
     post = []
     if loss_fn in L_inductive:
@@ -176,10 +177,10 @@ def test(n_tests,wd = 0, loss_fn =ncm_loss, eval_fn = ncm, masking =args.masking
             post.append( eval_fn(mask(run)).item())
             #print(mask.mask.sort())
         else:
-            current_confidence = ncm(run, confidence=True)
+            current_confidence = -loss_fn(run)
             for i in range(nb_base):
                 new_run = project(run, i)
-                new_confidence = ncm(new_run, confidence=True)
+                new_confidence = -loss_fn(new_run)
                 if new_confidence > current_confidence:
                     current_confidence = new_confidence
                     run = new_run
@@ -221,4 +222,4 @@ if args.parameter_scan:
         results = test(int(args.n_runs),  loss_fn = eval(args.loss_fn), eval_fn = eval(args.eval_fn))
         wandb.log(results)
 else:
-    results = test(int(args.n_runs), wd = args.wd, loss_fn = eval(args.loss_fn), eval_fn = eval(args.eval_fn), lr = args.lr)
+    results = test(n_tests = int(args.n_runs), loss_fn = eval(args.loss_fn), eval_fn = eval(args.eval_fn), lr = args.lr, wd = args.wd)
