@@ -147,7 +147,7 @@ def generate_run(num_classes = num_classes, num_shots = num_shots, num_queries =
 
 L_inductive = [snr, ncm_loss]
 
-def test(n_tests,wd = 0, loss_fn =ncm_loss, eval_fn = ncm, masking =args.masking, T = args.transductive_temperature_softkmeans, lr=args.lr):
+def test(n_tests,wd = 0, loss_fn =ncm_loss, eval_fn = ncm, masking =args.masking, T = args.transductive_temperature_softkmeans, lr=args.lr, num_queries = args.n_queries):
     print(loss_fn, eval_fn)
     if args.masking:
         print('wd = {}'.format(wd))
@@ -159,7 +159,7 @@ def test(n_tests,wd = 0, loss_fn =ncm_loss, eval_fn = ncm, masking =args.masking
     selectivities =[]
     results = {}
     for test in range(n_tests):
-        selectivity,run = generate_run()
+        selectivity,run = generate_run(num_queries = num_queries)
         selectivities.append(selectivity)
         pre.append(eval_fn(run).item())
         if masking:
@@ -207,6 +207,7 @@ mean, std = np.mean(selectivities), np.std(selectivities)
 
 list_wd = np.logspace(-4,-1,3)
 list_lr = np.logspace(-2,-3,3)
+list_queries =np.linspace(5,150,10).astype(int)
 if args.parameter_scan:
 
     if args.masking:
@@ -219,7 +220,13 @@ if args.parameter_scan:
 
                 wandb.log(results)
     else:
-        results = test(int(args.n_runs),  loss_fn = eval(args.loss_fn), eval_fn = eval(args.eval_fn))
-        wandb.log(results)
+        for n_queries in list_queries:
+            selectivities = []
+            for _ in range(1000):
+                selectivity, run = generate_run()
+                selectivities.append(selectivity.item())
+            mean, std = np.mean(selectivities), np.std(selectivities)
+            results = test(int(args.n_runs),  loss_fn = eval(args.loss_fn), eval_fn = eval(args.eval_fn), n_queries = n_queries)
+            wandb.log(results)
 else:
     results = test(n_tests = int(args.n_runs), loss_fn = eval(args.loss_fn), eval_fn = eval(args.eval_fn), lr = args.lr, wd = args.wd)
