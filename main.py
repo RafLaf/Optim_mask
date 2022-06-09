@@ -178,12 +178,14 @@ def test(n_tests,wd = 0, loss_fn =ncm_loss, eval_fn = ncm, masking =args.masking
             #print(mask.mask.sort())
         else:
             current_confidence = -loss_fn(run)
+            L_good=[]
             for i in range(nb_base):
                 new_run = project(run, i)
                 new_confidence = -loss_fn(new_run)
                 if new_confidence > current_confidence:
-                    current_confidence = new_confidence
-                    run = new_run
+                    L_good.append(i)
+            for j in L_good:
+                run = project(run, j)
             post.append(eval_fn(run).item())
         
         print("\r", end='')
