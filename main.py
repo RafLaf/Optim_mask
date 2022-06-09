@@ -157,7 +157,7 @@ def test(n_tests,wd = 0, loss_fn =ncm_loss, eval_fn = ncm, masking =args.masking
         print('no cheat inductive')
     print('')
     selectivities =[]
-    results = {}
+    results = {'n_queries': num_queries}
     for test in range(n_tests):
         selectivity,run = generate_run(num_queries = num_queries)
         selectivities.append(selectivity)
@@ -223,10 +223,10 @@ if args.parameter_scan:
         for n_queries in list_queries:
             selectivities = []
             for _ in range(1000):
-                selectivity, run = generate_run()
+                selectivity, run = generate_run(num_queries=n_queries)
                 selectivities.append(selectivity.item())
             mean, std = np.mean(selectivities), np.std(selectivities)
-            results = test(int(args.n_runs),  loss_fn = eval(args.loss_fn), eval_fn = eval(args.eval_fn), n_queries = n_queries)
+            results = test(int(args.n_runs),  loss_fn = eval(args.loss_fn), eval_fn = eval(args.eval_fn), num_queries = n_queries)
             wandb.log(results)
 else:
     results = test(n_tests = int(args.n_runs), loss_fn = eval(args.loss_fn), eval_fn = eval(args.eval_fn), lr = args.lr, wd = args.wd)
