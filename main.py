@@ -19,7 +19,7 @@ if args.wandb!='':
     wandb.init(project="optim", 
             entity=args.wandb, 
             tags=tag, 
-            group = 'std'
+            group = 'std',
             notes=str(vars(args))
             )
 
