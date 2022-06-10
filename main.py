@@ -19,6 +19,7 @@ if args.wandb!='':
     wandb.init(project="optim", 
             entity=args.wandb, 
             tags=tag, 
+            group = 'std'
             notes=str(vars(args))
             )
 
@@ -195,6 +196,7 @@ def test(n_tests,wd = 0, loss_fn =ncm_loss, eval_fn = ncm, masking =args.masking
                 results[name+'_len']= len(indexes)
                 results[name+'_post']=np.mean(np.array(post)[indexes])
                 results[name+'_boost']=( np.mean(np.array(post)[indexes]- np.mean(np.array(pre)[indexes])))
+                results[name+'_boostSTD']=( np.std(np.array(post)[indexes]- np.mean(np.array(pre)[indexes])))
                 print("{:s} ({:4d}) {:.2f}% (boost: {:.2f}%) ".format(name, len(indexes), 100 * np.mean(np.array(post)[indexes]), 100 * (np.mean(np.array(post)[indexes]) - np.mean(np.array(pre)[indexes]))), end='')
         print("    ", end ='')
     print()
