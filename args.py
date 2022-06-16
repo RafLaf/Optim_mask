@@ -22,7 +22,9 @@ parser.add_argument("--wd", type=float, default=0.01, help="weight decay")
 
 parser.add_argument("--elts-class", type=str, default="/users/local/datasets/tieredimagenet/num_elements.pt", help="test features and exit")
 
-parser.add_argument("--test-features", type=str, default='/users/local/r21lafar/features/tiered/tieredfeaturesAS2.pt11', help="test features and exit")
+
+parser.add_argument("--test-model", type=str, default='/users/local/r21lafar/models/tieredlong1.pt5', help="test features and exit")
+parser.add_argument("--test-features", type=str, default='/users/local/r21lafar/features/tiered/tieredfeatures1.pt55', help="test features and exit")
 parser.add_argument("--semantic-features", type=str, default='/users/local/r21lafar/features/tiered/tiered_semantic_features.pt', help="load text features")
 parser.add_argument("--labels", type=str, default='/users/local/datasets/labels_tiered.txt', help="load labels")
 parser.add_argument("--codes", type=str, default='/users/local/datasets/Tiered_codes.txt', help="load codes")
@@ -34,13 +36,18 @@ parser.add_argument("--n-runs", type=int, default=100, help="number of few-shot 
 parser.add_argument("--n-ways", type=int, default=5, help="number of few-shot ways")
 parser.add_argument("--n-queries", type=int, default=150, help="number of few-shot queries")
 
+
 parser.add_argument("--ortho" ,action="store_true", help="create hard problems")
 parser.add_argument("--soft" ,action="store_true", help="soft or normal kmeans")
 parser.add_argument("--parameter-scan" ,action="store_true", help="scan lr and wd")
 
 
+parser.add_argument("--random" ,action="store_true", help="random base vectors")
 parser.add_argument("--semantic-difficulty" ,action="store_true", help="create hard problems")
 parser.add_argument("--masking" ,action="store_true", help="create hard problems")
+parser.add_argument("--use-classifier" ,action="store_true", help="use classifier")
+parser.add_argument("--MEclassifier" ,action="store_true", help="apply ME to the classifier")
+
 
 parser.add_argument("--transductive-temperature-softkmeans", type=float, default=5, help="temperature for few-shot transductive is using softkmeans")
 

@@ -62,9 +62,24 @@ if torch.is_tensor(dataset):
     shape = dataset.shape
     average = torch.stack([dataset[i, :int(elements_per_class[i])].mean(dim = 0) for i in range(nb_base)]).mean(dim = 0)
     dataset = dataset.reshape(-1, dataset.shape[-1]) - average
-    dataset = dataset / torch.norm(dataset, dim = 1, keepdim = True)
+    normE = torch.norm(dataset, dim = 1, keepdim = True)
+    dataset = dataset / normE
     dataset = dataset.reshape(shape)
     ini_centroids = dataset.mean(dim = 1)
+    if args.use_classifier:
+        model = torch.load(args.test_model, map_location =args.device)
+        classifier = model['linear.weight']
+        if args.MEclassifier:
+            norm = torch.norm(classifier, dim= 1)
+            print(f'{classifier.shape=} {average.shape=} {norm.shape=}')
+            ini_centroids[:nb_base] = (classifier - average)/norm.unsqueeze(1).repeat(1,shape[-1])
+        else:
+            ini_centroids[:nb_base] = classifier
+
+
+    elif args.random:
+        ini_centroids[:nb_base] = torch.randn(ini_centroids[:nb_base].shape)
+
     dataset_n = dataset[-nb_novel:]
 else:
     base_features = dataset['base']
@@ -78,7 +93,10 @@ else:
     novel_features = novel_features.reshape(-1, novel_features.shape[-1]) - average
     novel_features = novel_features / torch.norm(novel_features, dim = 1, keepdim = True)
     novel_features = novel_features.reshape(s)
-    ini_centroids = base_features.mean(dim = 1)
+    ini_centroids = dataset[:nb_base].mean(dim = 1)
+    if args.use_classifier:
+        model = torch.load(args.test_model, map_location =args.device)
+        ini_centroids[:nb_base] = model['linear.weight']
     dataset_n = novel_features
     assert (not args.semantic_difficulty)
 
