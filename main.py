@@ -80,7 +80,7 @@ if torch.is_tensor(dataset):
     elif args.random:
         ini_centroids[:nb_base] = torch.randn(ini_centroids[:nb_base].shape)
 
-    dataset_n = dataset[-nb_novel:]
+    dataset_n = dataset[:nb_base]  # CHANGED NOVEL FOR BASE HERE
 else:
     base_features = dataset['base']
     val_features = dataset['val']
@@ -97,7 +97,7 @@ else:
     if args.use_classifier:
         model = torch.load(args.test_model, map_location =args.device)
         ini_centroids[:nb_base] = model['linear.weight']
-    dataset_n = novel_features
+    dataset_n = base_features
     assert (not args.semantic_difficulty)
 
 
@@ -154,7 +154,7 @@ def generate_run(num_classes = num_classes, num_shots = num_shots, num_queries =
     if args.semantic_difficulty:
         classes = run_classes_sample(semantic_features_n,n_ways = num_classes, dmax=dmax,n_runs = 1 , distances=distances_n,maxiter = 1000, label = labels[nb_base+nb_val:] ).long()
     else:
-        classes = torch.randperm(nb_novel)[:num_classes].unsqueeze(0) 
+        classes = torch.randperm(nb_base)[:num_classes].unsqueeze(0)  # CHANGED NOVEL FOR BASE HERE
     samples = []
     for i in range(num_classes):
         samples.append(dataset_n[classes[0][i], torch.randperm(elements_per_class[nb_base+nb_val+classes[0][i]])[:num_shots+num_queries]])
