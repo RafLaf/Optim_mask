@@ -157,8 +157,8 @@ def generate_run(num_classes = num_classes, num_shots = num_shots, num_queries =
         classes = torch.randperm(nb_base)[:num_classes].unsqueeze(0)  # CHANGED NOVEL FOR BASE HERE
     samples = []
     for i in range(num_classes):
-        samples.append(dataset_n[classes[0][i], torch.randperm(elements_per_class[nb_base+nb_val+classes[0][i]])[:num_shots+num_queries]])
-    return torch.max(torch.norm(centroids[nb_base+ nb_val+ classes[0][:num_classes]].unsqueeze(0) - centroids[nb_base+ nb_val+ classes[0][:num_classes]].unsqueeze(1))), torch.stack(samples)
+        samples.append(dataset_n[classes[0][i], torch.randperm(elements_per_class[classes[0][i]])[:num_shots+num_queries]])
+    return torch.max(torch.norm(centroids[ classes[0][:num_classes]].unsqueeze(0) - centroids[classes[0][:num_classes]].unsqueeze(1))), torch.stack(samples), classes[0]
 # ncm
 
 
@@ -177,8 +177,11 @@ def test(n_tests,wd = 0, loss_fn =ncm_loss, eval_fn = ncm, masking =args.masking
     print('')
     selectivities =[]
     results = {'n_queries': num_queries}
+    L_cl = []
+    L_removed = []
     for test in range(n_tests):
-        selectivity,run = generate_run(num_queries = num_queries)
+        selectivity,run, cl = generate_run(num_queries = num_queries)
+        L_cl.append(cl)
         selectivities.append(selectivity)
         pre.append(eval_fn(run).item())
         if masking:
@@ -203,6 +206,9 @@ def test(n_tests,wd = 0, loss_fn =ncm_loss, eval_fn = ncm, masking =args.masking
                 new_confidence = -loss_fn(new_run)
                 if new_confidence > current_confidence:
                     L_good.append(i)
+            one_hot_good = F.one_hot(torch.tensor(L_good).long(), num_classes = nb_base).sum(0)
+            L_removed.append(one_hot_good)
+
             for j in L_good:
                 run = project(run, j)
             post.append(eval_fn(run).item())
@@ -218,11 +224,15 @@ def test(n_tests,wd = 0, loss_fn =ncm_loss, eval_fn = ncm, masking =args.masking
                 print("{:s} ({:4d}) {:.2f}% (boost: {:.2f}%) ".format(name, len(indexes), 100 * np.mean(np.array(post)[indexes]), 100 * (np.mean(np.array(post)[indexes]) - np.mean(np.array(pre)[indexes]))), end='')
         print("    ", end ='')
     print()
+    L_cl = torch.stack(L_cl).detach().cpu().numpy()
+
+    L_removed = torch.stack(L_removed).detach().cpu().numpy()
+    np.savez('data/class_stats', classes = L_cl,removed = L_removed)
     return results
 
 selectivities = []
 for _ in range(1000):
-    selectivity, run = generate_run()
+    selectivity, run, cl = generate_run()
     selectivities.append(selectivity.item())
 mean, std = np.mean(selectivities), np.std(selectivities)
 
@@ -245,7 +255,7 @@ if args.parameter_scan:
         for n_queries in list_queries:
             selectivities = []
             for _ in range(1000):
-                selectivity, run = generate_run(num_queries=n_queries)
+                selectivity, run, cl= generate_run(num_queries=n_queries)
                 selectivities.append(selectivity.item())
             mean, std = np.mean(selectivities), np.std(selectivities)
             results = test(int(args.n_runs),  loss_fn = eval(args.loss_fn), eval_fn = eval(args.eval_fn), num_queries = n_queries)
