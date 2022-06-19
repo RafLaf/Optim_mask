@@ -65,7 +65,7 @@ if torch.is_tensor(dataset):
     normE = torch.norm(dataset, dim = 1, keepdim = True)
     dataset = dataset / normE
     dataset = dataset.reshape(shape)
-    ini_centroids = dataset.mean(dim = 1)
+    ini_centroids = centroids = torch.stack([dataset[i,:elements_per_class[i]].mean(dim=0) for i in range(dataset.shape[0])])
     if args.use_classifier:
         model = torch.load(args.test_model, map_location =args.device)
         classifier = model['linear.weight']

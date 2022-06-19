@@ -40,6 +40,8 @@ parser.add_argument("--n-queries", type=int, default=150, help="number of few-sh
 parser.add_argument("--ortho" ,action="store_true", help="create hard problems")
 parser.add_argument("--soft" ,action="store_true", help="soft or normal kmeans")
 parser.add_argument("--parameter-scan" ,action="store_true", help="scan lr and wd")
+parser.add_argument("--greedy" ,action="store_true", help="take initial greedy approach ")
+
 
 
 parser.add_argument("--random" ,action="store_true", help="random base vectors")
