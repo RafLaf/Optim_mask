@@ -229,7 +229,7 @@ mean, std = np.mean(selectivities), np.std(selectivities)
 
 list_wd = np.logspace(-4,-1,3)
 list_lr = np.logspace(-2,-3,3)
-list_queries =np.linspace(5,150,10).astype(int)
+list_queries =np.linspace(5,100,4).astype(int)
 if args.parameter_scan:
 
     if args.masking:
