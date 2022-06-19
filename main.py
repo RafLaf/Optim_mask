@@ -195,6 +195,15 @@ def test(n_tests,wd = 0, loss_fn =ncm_loss, eval_fn = ncm, masking =args.masking
                 optimizer.step()
             post.append( eval_fn(mask(run)).item())
             #print(mask.mask.sort())
+        elif args.greedy:
+            current_confidence = -loss_fn(run)
+            for i in range(nb_base):
+                new_run = project(run, i)
+                new_confidence = -loss_fn(new_run)
+                if new_confidence > current_confidence:
+                    current_confidence = new_confidence
+                    run = new_run
+            post.append(eval_fn(run).item())
         else:
             current_confidence = -loss_fn(run)
             L_good=[]
