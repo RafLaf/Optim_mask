@@ -86,10 +86,12 @@ else:
 
 
 centroids = ini_centroids
+
 if args.ortho:
     u, _, v = torch.svd(ini_centroids[:nb_base])
     centroids[:nb_base] = torch.matmul(u, v.transpose(0,1))  #orthogonalization
 
+print(centroids[:2,:2], dataset[:2,:2,:2])
 
 assert(num_classes+num_shots < dataset.shape[1])
 
@@ -112,12 +114,6 @@ def project(run, i):
     run = run - torch.einsum("csd,d->cs", run, ncentroid).unsqueeze(2) * ncentroid.unsqueeze(0).unsqueeze(0)
     return run / torch.norm(run, dim = 2, keepdim = True)
 
-
-
-#centroids = torch.randn(64,640).to(device)*0.04
-#torch.einsum("nd,nd->n", ini_centroids / torch.norm(ini_centroids,dim = 1, keepdim = True), centroids)
-
-
 # masking model
 
 class Mask(nn.Module):
@@ -129,8 +125,6 @@ class Mask(nn.Module):
         remove_contribs = torch.clamp(self.mask.unsqueeze(0).unsqueeze(0), 0, 1) * contribs
         return x - torch.einsum("csb,bd->csd", remove_contribs, centroids[:nb_base])
 
-
-
 def generate_run(num_classes = num_classes, num_shots = num_shots, num_queries = num_queries, dmax= 6.5 ,label=None ):
     if args.semantic_difficulty:
         classes = run_classes_sample(semantic_features_n,n_ways = num_classes, dmax=dmax,n_runs = 1 , distances=distances_n,maxiter = 1000, label = labels[nb_base+nb_val:] ).long()
@@ -141,10 +135,7 @@ def generate_run(num_classes = num_classes, num_shots = num_shots, num_queries =
         samples.append(dataset_n[classes[0][i], torch.randperm(elements_per_class[nb_base+nb_val+classes[0][i]])[:num_shots+num_queries]])
     return torch.max(torch.norm(centroids[nb_base+ nb_val+ classes[0][:num_classes]].unsqueeze(0) - centroids[nb_base+ nb_val+ classes[0][:num_classes]].unsqueeze(1))), torch.stack(samples)
 # ncm
-
-
 # compute snr
-
 L_inductive = [snr, ncm_loss]
 
 def test(n_tests,wd = 0, loss_fn =ncm_loss, eval_fn = ncm, masking =args.masking, T = args.transductive_temperature_softkmeans, lr=args.lr, num_queries = args.n_queries):
