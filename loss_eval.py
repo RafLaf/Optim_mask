@@ -87,6 +87,9 @@ def soft_k_means(run,num_shots = args.n_shots,num_classes =args.n_ways ,alloc =F
         return (torch.argmin(dists, dim = 2) - torch.arange(5).unsqueeze(1).to(args.device) == 0).float().mean()
 
 
+def soft_k_means_confidence(run):
+    return soft_k_means(run, confidence=True)
+
 def kmeans(run,num_shots = args.n_shots,num_classes =args.n_ways ,alloc =False,confidence=False ):
     with torch.no_grad():
         means = torch.mean(run[:,:num_shots], dim = 1)
