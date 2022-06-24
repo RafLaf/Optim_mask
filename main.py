@@ -81,6 +81,7 @@ if torch.is_tensor(dataset):
         ini_centroids[:nb_base] = torch.randn(ini_centroids[:nb_base].shape)
 
     dataset_n = dataset[-nb_novel:]
+    dim = dataset.shape[-1]
 else:
     base_features = dataset['base']
     val_features = dataset['val']
@@ -93,12 +94,15 @@ else:
     novel_features = novel_features.reshape(-1, novel_features.shape[-1]) - average
     novel_features = novel_features / torch.norm(novel_features, dim = 1, keepdim = True)
     novel_features = novel_features.reshape(s)
-    ini_centroids = dataset[:nb_base].mean(dim = 1)
+    ini_centroids = base_features[:nb_base].mean(dim = 1)
     if args.use_classifier:
         model = torch.load(args.test_model, map_location =args.device)
         ini_centroids[:nb_base] = model['linear.weight']
     dataset_n = novel_features
     assert (not args.semantic_difficulty)
+    dim = base_features.shape[-1]
+    elements_per_class = torch.load(args.elts_class)
+
 
 
 
@@ -110,10 +114,9 @@ if args.ortho:
     centroids[:nb_base] = torch.matmul(u, v.transpose(0,1))  #orthogonalization
 
 
-assert(num_classes+num_shots < dataset.shape[1])
 
 
-dim = dataset.shape[-1]
+
 
 
 if args.semantic_difficulty:
