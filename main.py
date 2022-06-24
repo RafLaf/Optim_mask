@@ -65,24 +65,27 @@ if torch.is_tensor(dataset):
     normE = torch.norm(dataset, dim = 1, keepdim = True)
     dataset = dataset / normE
     dataset = dataset.reshape(shape)
-    ini_centroids = centroids = torch.stack([dataset[i,:elements_per_class[i]].mean(dim=0) for i in range(dataset.shape[0])])
+    centroids =  torch.stack([dataset[i,:elements_per_class[i]].mean(dim=0) for i in range(dataset.shape[0])])
     if args.use_classifier:
         model = torch.load(args.test_model, map_location =args.device)
         classifier = model['linear.weight']
         if args.MEclassifier:
             norm = torch.norm(classifier, dim= 1)
             print(f'{classifier.shape=} {average.shape=} {norm.shape=}')
-            ini_centroids[:nb_base] = (classifier - average)/norm.unsqueeze(1).repeat(1,shape[-1])
+            centroids['train'] = (classifier - average)/norm.unsqueeze(1).repeat(1,shape[-1])
         else:
-            ini_centroids[:nb_base] = classifier
+            centroids['train'] = classifier
 
 
     elif args.random:
-        ini_centroids[:nb_base] = torch.randn(ini_centroids[:nb_base].shape)
+        centroids['train'] = torch.randn(centroids[:nb_base].shape)
 
-    dataset_n = dataset[-nb_novel:]
+    novel_features = dataset[-nb_novel:]
     dim = dataset.shape[-1]
+    assert(num_shots+num_queries<novel_features.shape[-1])
+
 else:
+    elements_per_class = torch.load(args.elts_class)
     base_features = dataset['base']
     val_features = dataset['val']
     novel_features = dataset['novel']
@@ -94,29 +97,23 @@ else:
     novel_features = novel_features.reshape(-1, novel_features.shape[-1]) - average
     novel_features = novel_features / torch.norm(novel_features, dim = 1, keepdim = True)
     novel_features = novel_features.reshape(s)
-    ini_centroids = base_features[:nb_base].mean(dim = 1)
+    centroids ={}
+    centroids['train'] = torch.stack([base_features[i,:elements_per_class['train'][i]].mean(dim=0) for i in range(base_features.shape[0])])
+    centroids['val'] = torch.stack([val_features[i,:elements_per_class['val'][i]].mean(dim=0) for i in range(val_features.shape[0])])
+    centroids['test'] = torch.stack([novel_features[i,:elements_per_class['test'][i]].mean(dim=0) for i in range(novel_features.shape[0])])
+
     if args.use_classifier:
         model = torch.load(args.test_model, map_location =args.device)
-        ini_centroids[:nb_base] = model['linear.weight']
+        centroids[:nb_base] = model['linear.weight']
     dataset_n = novel_features
     assert (not args.semantic_difficulty)
     dim = base_features.shape[-1]
-    elements_per_class = torch.load(args.elts_class)
+    assert(num_shots+num_queries<novel_features.shape[-1])
 
 
-
-
-
-
-centroids = ini_centroids
 if args.ortho:
-    u, _, v = torch.svd(ini_centroids[:nb_base])
-    centroids[:nb_base] = torch.matmul(u, v.transpose(0,1))  #orthogonalization
-
-
-
-
-
+    u, _, v = torch.svd(centroids['train'])
+    centroids['train'] = torch.matmul(u, v.transpose(0,1))  #orthogonalization
 
 
 if args.semantic_difficulty:
@@ -129,15 +126,13 @@ if args.semantic_difficulty:
 
 
 def project(run, i):
-    ncentroid = centroids[i]
+    ncentroid = centroids['train'][i]
     ncentroid = ncentroid / torch.norm(ncentroid, dim = 0)
     run = run - torch.einsum("csd,d->cs", run, ncentroid).unsqueeze(2) * ncentroid.unsqueeze(0).unsqueeze(0)
     return run / torch.norm(run, dim = 2, keepdim = True)
 
 
 
-#centroids = torch.randn(64,640).to(device)*0.04
-#torch.einsum("nd,nd->n", ini_centroids / torch.norm(ini_centroids,dim = 1, keepdim = True), centroids)
 
 
 # masking model
@@ -157,11 +152,11 @@ def generate_run(num_classes = num_classes, num_shots = num_shots, num_queries =
     if args.semantic_difficulty:
         classes = run_classes_sample(semantic_features_n,n_ways = num_classes, dmax=dmax,n_runs = 1 , distances=distances_n,maxiter = 1000, label = labels[nb_base+nb_val:] ).long()
     else:
-        classes = torch.randperm(nb_novel)[:num_classes].unsqueeze(0) 
+        classes = torch.randperm(nb_novel)[:num_classes]
     samples = []
     for i in range(num_classes):
-        samples.append(dataset_n[classes[0][i], torch.randperm(elements_per_class[nb_base+nb_val+classes[0][i]])[:num_shots+num_queries]])
-    return torch.max(torch.norm(centroids[nb_base+ nb_val+ classes[0][:num_classes]].unsqueeze(0) - centroids[nb_base+ nb_val+ classes[0][:num_classes]].unsqueeze(1))), torch.stack(samples)
+        samples.append(novel_features[classes[i], torch.randperm(elements_per_class['test'][classes[i]])[:num_shots+num_queries]])
+    return torch.max(torch.norm(centroids['test'] [classes].unsqueeze(0) - centroids['test'] [classes].unsqueeze(1))), torch.stack(samples)
 # ncm
 
 
